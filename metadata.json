@@ -1,0 +1,6 @@
+{
+  "name": "极简顶部浮动状态栏",
+  "description": "一个高颜值桌面端极简顶部浮动状态栏，集成 Codex 额度展示、喝水倒计时，支持鼠标悬停自动隐藏、微缩状态栏及提醒状态等功能。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
