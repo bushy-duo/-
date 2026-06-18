@@ -1,0 +1,43 @@
+{
+  "name": "codex-water-statusbar-desktop",
+  "version": "1.0.0",
+  "description": "极简桌面浮动状态栏 / Minimalist Floating Statusbar (Codex & Water Droplet)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack:win": "electron-builder --win",
+    "pack:mac": "electron-builder --mac",
+    "pack:linux": "electron-builder --linux"
+  },
+  "keywords": [
+    "widget",
+    "statusbar",
+    "water-reminder",
+    "desktop"
+  ],
+  "author": "Codex Dev",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "electron": "^31.4.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.codex.waterstatusbar",
+    "productName": "CodexWaterStatusbar",
+    "mac": {
+      "category": "public.app-category.utilities"
+    },
+    "win": {
+      "target": "portable"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "package.json"
+    ]
+  }
+}

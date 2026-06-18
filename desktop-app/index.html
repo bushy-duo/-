@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Codex & Water Statusbar (Desktop)</title>
+  <!-- Load Tailwind CSS compiled library for modern visual graphics -->
+  <script src="https://cdn.tailwindcss.com/3.4.15"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', 'monospace']
+          },
+          animation: {
+            'water-pulse': 'waterPulse 2s infinite ease-in-out',
+            'water-pulse-due': 'waterPulseDue 1.5s infinite ease-in-out',
+            'ping-slow': 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+            'border-glow-due': 'borderGlowDue 1.5s infinite ease-in-out'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Draggable window frame regions */
+    .draggable-region {
+      -webkit-app-region: drag;
+    }
+    .no-drag {
+      -webkit-app-region: no-drag;
+    }
+
+    /* Keyframes for the custom droplet animations mirroring the React design */
+    @keyframes waterPulse {
+      0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 var(--pulse-color, rgba(56, 189, 248, 0.5));
+      }
+      50% {
+        transform: scale(var(--pulse-scale, 1.15));
+        box-shadow: 0 0 0 var(--pulse-shadow, 8px) var(--pulse-color-fade, rgba(56, 189, 248, 0));
+      }
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 var(--pulse-color-fade, rgba(56, 189, 248, 0));
+      }
+    }
+
+    @keyframes waterPulseDue {
+      0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 var(--pulse-color, rgba(239, 68, 68, 0.6));
+      }
+      50% {
+        transform: scale(var(--pulse-scale, 1.2));
+        box-shadow: 0 0 0 var(--pulse-shadow, 12px) var(--pulse-color-fade, rgba(239, 68, 68, 0));
+      }
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 var(--pulse-color-fade, rgba(239, 68, 68, 0));
+      }
+    }
+
+    @keyframes borderGlowDue {
+      0%, 100% {
+        border-color: rgba(244, 63, 94, 0.4);
+        box-shadow: 0 4px 20px -2px rgba(244, 63, 94, 0.1), inset 0 0 4px 0 rgba(244, 63, 94, 0.05);
+      }
+      50% {
+        border-color: rgba(244, 63, 94, 0.95);
+        box-shadow: 0 4px 24px 2px rgba(244, 63, 94, 0.35), inset 0 0 8px 1px rgba(244, 63, 94, 0.15);
+      }
+    }
+
+    /* Scrollbars customizing */
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0,0,0,0.1);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.15);
+      border-radius: 99px;
+    }
+  </style>
+</head>
+<body class="bg-transparent text-zinc-100 select-none overflow-hidden m-0 p-0 font-display">
+
+  <div id="app-container" class="w-full flex flex-col justify-end items-center relative overflow-hidden" style="height: 100vh;">
+
+    <!-- TOP MINI-PROGRESS-BAR (when collapsed in TOP layout) -->
+    <div id="mini-progress-bar" class="absolute top-0 left-12 right-12 h-[2.5px] bg-zinc-805/40 rounded-b overflow-hidden pointer-events-none transition-all duration-300 opacity-0">
+      <div id="mini-progress-fill-wrapper" class="h-full absolute right-0 top-0 w-0 transition-all duration-300">
+        <div id="mini-progress-fill" class="h-full absolute right-0 top-0 bg-gradient-to-r from-cyan-400 via-indigo-500 to-rose-500 w-[420px] min-w-[420px]"></div>
+      </div>
+    </div>
+
+    <!-- MAIN STATUSBAR CAPSULE -->
+    <div 
+      id="statusbar-capsule" 
+      class="draggable-region flex items-center justify-between gap-3 px-3.5 py-1.5 rounded-full border transition-all duration-500 border-zinc-700/50 bg-zinc-900/95 shadow-2xl relative cursor-move hover:border-cyan-500/20"
+      style="width: 440px; height: 38px; margin-bottom: 12px;"
+    >
+      <!-- LEFT SECTION: CODEX USAGE -->
+      <div class="flex items-center gap-3 no-drag" id="codex-usage-wrap">
+        <span class="font-bold text-[11.5px] tracking-wide text-zinc-300">Codex</span>
+        
+        <!-- 5H Circular Progress -->
+        <div class="relative w-[18px] h-[18px] group cursor-help" id="cnt-5h">
+          <svg class="w-full h-full transform -rotate-90">
+            <circle cx="9" cy="9" r="7.5" fill="none" class="stroke-zinc-800" stroke-width="2" />
+            <circle id="circle-5h" cx="9" cy="9" r="7.5" fill="none" class="stroke-cyan-500 transition-all duration-500" stroke-width="2" stroke-dasharray="47.12" stroke-dashoffset="17.9"/>
+          </svg>
+          <span class="absolute hidden group-hover:block bottom-7 left-1/2 -translate-x-1/2 bg-zinc-950 border border-zinc-800 text-[10px] text-zinc-300 px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap z-50">
+            <p class="font-semibold text-cyan-400">5小时额度</p>
+            <p id="tip-5h" class="text-[9px] text-zinc-400">已使用: 62% | 剩余: 38%</p>
+          </span>
+        </div>
+
+        <!-- Weekly Circular Progress -->
+        <div class="relative w-[18px] h-[18px] group cursor-help" id="cnt-wk">
+          <svg class="w-full h-full transform -rotate-90">
+            <circle cx="9" cy="9" r="7.5" fill="none" class="stroke-zinc-800" stroke-width="2" />
+            <circle id="circle-wk" cx="9" cy="9" r="7.5" fill="none" class="stroke-emerald-500 transition-all duration-500" stroke-width="2" stroke-dasharray="47.12" stroke-dashoffset="29.2"/>
+          </svg>
+          <span class="absolute hidden group-hover:block bottom-7 left-1/2 -translate-x-1/2 bg-zinc-950 border border-zinc-800 text-[10px] text-zinc-300 px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap z-50">
+            <p class="font-semibold text-emerald-400">每周累计额度</p>
+            <p id="tip-wk" class="text-[9px] text-zinc-400">已使用: 38% | 剩余: 62%</p>
+          </span>
+        </div>
+      </div>
+
+      <!-- MIDDLE DIVIDER -->
+      <div id="divider-bar" class="w-[1px] h-3 bg-zinc-800"></div>
+
+      <!-- RIGHT SECTION: WATER REMINDER -->
+      <div class="flex items-center gap-2.5 no-drag" id="water-reminder-wrap">
+        <!-- Pulse Droplet Button -->
+        <button 
+          id="btn-drink" 
+          class="w-5 h-5 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-cyan-400 flex items-center justify-center relative cursor-pointer active:scale-95 transition-all text-xs"
+          style="--pulse-scale: 1; --pulse-shadow: 0px;"
+          onclick="onDrinkWater()"
+        >
+          <!-- SVG droplet -->
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" class="fill-cyan-400/20 text-cyan-400 stroke-cyan-400" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22a7 7 0 0 0 7-7c0-4.3-7-11-7-11S5 10.7 5 15a7 7 0 0 0 7 7z"/>
+          </svg>
+          <span id="btn-ping" class="absolute inset-0 rounded-full border border-cyan-400 animate-ping opacity-30"></span>
+        </button>
+
+        <!-- Timer progress slider counter -->
+        <div id="cnt-timer" class="flex flex-col text-left group cursor-help relative p-0.5">
+          <span id="txt-timer" class="text-[10px] font-mono font-bold text-zinc-200 tracking-tight leading-none">30:00</span>
+          <span class="text-[7.5px] uppercase font-mono tracking-wider text-zinc-500 leading-none mt-0.5">Water</span>
+          
+          <span class="absolute hidden group-hover:block bottom-7 left-1/2 -translate-x-1/2 bg-zinc-950 border border-zinc-800 text-[10px] text-zinc-300 px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap z-50">
+            <p class="font-semibold text-sky-400">喝水提醒进度</p>
+            <p id="tip-timer" class="text-[9px] text-zinc-400">间隔: 30分钟 | 进度: 100%</p>
+          </span>
+        </div>
+
+        <!-- Progress Track Draining from Left to Right -->
+        <!-- Fixed size inner gradients, clipping is done by shifting absolute position inside! -->
+        <div class="w-[124px] h-2 bg-zinc-950/85 rounded-full overflow-hidden border border-white/5 relative">
+          <!-- Overflow wrapper right-aligned to slide off from left-to-right (means narrowing towards the right side) -->
+          <div 
+            id="progress-clipper" 
+            class="h-full rounded-full overflow-hidden transition-[width] duration-350 ease-out absolute right-0 top-0 w-full"
+          >
+            <!-- Fixed wide gradient overlaying right top, ensuring standard beautiful transitions -->
+            <div 
+              id="progress-gradient" 
+              class="h-full absolute right-0 top-0 bg-gradient-to-r from-sky-450 via-indigo-500 to-rose-500 w-[124px] min-w-[124px]"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT EDGE: SETTINGS TRIGGER & CLOSE -->
+      <div class="flex items-center gap-1.5 no-drag">
+        <!-- Settings Gear -->
+        <button id="btn-settings" class="p-1 rounded text-zinc-400 hover:text-cyan-400 hover:bg-zinc-800/50 transition-colors" onclick="toggleSettingsPanel()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- SETTINGS PANEL (Dynamically shown and pushed either upwards or downwards) -->
+    <div 
+      id="settings-panel" 
+      class="no-drag w-[440px] bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-2xl space-y-3.5 absolute hidden z-40 transition-all duration-300"
+      style="bottom: 56px;"
+    >
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-2">
+        <h3 class="text-xs font-bold font-display text-zinc-100 flex items-center gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-400"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+          桌面挂件配置面板
+        </h3>
+        <button class="text-zinc-500 hover:text-zinc-200 text-xs font-mono px-1.5 py-0.5" onclick="onCloseApp()">退出程序</button>
+      </div>
+
+      <!-- Controls grid -->
+      <div class="grid grid-cols-2 gap-3.5 text-xs">
+        
+        <!-- Theme selection -->
+        <div class="space-y-1.5">
+          <label class="text-[10px] text-zinc-400 font-semibold block">外观视觉主题</label>
+          <select id="sel-theme" class="w-full bg-zinc-950/80 border border-zinc-800 text-zinc-200 py-1 px-1.5 rounded text-xs select-none focus:outline-none" onchange="onThemeChange()">
+            <option value="frosted-dark">磨砂暗卡 (Frosted Dark)</option>
+            <option value="glass-light">毛玻璃白 (Glass Light)</option>
+            <option value="midnight-synth">深夜霓虹 (Midnight Synth)</option>
+          </select>
+        </div>
+
+        <!-- Position select -->
+        <div class="space-y-1.5">
+          <label class="text-[10px] text-zinc-400 font-semibold block">桌面贴边锚定位置</label>
+          <div class="flex gap-1">
+            <button id="btn-pos-left" class="flex-1 bg-zinc-800 rounded py-1 px-0.5 text-[9.5px] border border-cyan-500/30 text-cyan-400 font-semibold" onclick="onPositionChange('bottom-left')">左下</button>
+            <button id="btn-pos-center" class="flex-1 bg-zinc-950 rounded py-1 px-0.5 text-[9.5px] border border-zinc-800 text-zinc-400" onclick="onPositionChange('top-center')">顶中</button>
+            <button id="btn-pos-right" class="flex-1 bg-zinc-950 rounded py-1 px-0.5 text-[9.5px] border border-zinc-800 text-zinc-400" onclick="onPositionChange('top-right')">右上</button>
+          </div>
+        </div>
+
+        <!-- Interval adjustment slider -->
+        <div class="space-y-1">
+          <div class="flex justify-between items-center text-[10px]">
+            <span class="text-zinc-400 font-semibold">健康喝水间隔</span>
+            <span id="lbl-interval" class="text-cyan-400 font-bold font-mono">30 Mins</span>
+          </div>
+          <input id="rng-interval" type="range" min="5" max="180" value="30" class="w-full accent-cyan-400 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer" oninput="onIntervalChange(this.value)" />
+        </div>
+
+        <!-- Opacity selection -->
+        <div class="space-y-1">
+          <div class="flex justify-between items-center text-[10px]">
+            <span class="text-zinc-400 font-semibold">背景不透明度</span>
+            <span id="lbl-opacity" class="text-cyan-400 font-bold font-mono">95%</span>
+          </div>
+          <input id="rng-opacity" type="range" min="30" max="100" value="95" class="w-full accent-cyan-400 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer" oninput="onOpacityChange(this.value)" />
+        </div>
+
+        <!-- Codex 5h configuration -->
+        <div class="space-y-1">
+          <div class="flex justify-between items-center text-[10px]">
+            <span class="text-zinc-400 font-semibold">手动调试 5h 剩余额度</span>
+            <span id="lbl-codex-5h" class="text-cyan-400 font-bold font-mono">38%</span>
+          </div>
+          <input id="rng-codex-5h" type="range" min="0" max="100" value="38" class="w-full accent-cyan-400 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer" oninput="onCodex5hChange(this.value)" />
+        </div>
+
+        <!-- Codex Weekly configuration -->
+        <div class="space-y-1">
+          <div class="flex justify-between items-center text-[10px]">
+            <span class="text-zinc-400 font-semibold">手动调试 每周剩余额度</span>
+            <span id="lbl-codex-wk" class="text-cyan-400 font-bold font-mono">62%</span>
+          </div>
+          <input id="rng-codex-wk" type="range" min="0" max="100" value="62" class="w-full accent-cyan-400 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer" oninput="onCodexWkChange(this.value)" />
+        </div>
+
+      </div>
+
+      <!-- Acceleration mode row -->
+      <div class="flex items-center justify-between bg-zinc-950 p-2 rounded-xl border border-zinc-800/80 mt-1">
+        <div class="flex flex-col text-left">
+          <span class="text-[10px] font-bold text-zinc-300">秒级调试模式 (Debug Speedrun)</span>
+          <span class="text-[8px] text-zinc-500">倒计时分钟转换为秒，方便即时测试进度条与高亮动画</span>
+        </div>
+        <input id="chk-debug" type="checkbox" class="w-3.5 h-3.5 accent-cyan-400 rounded cursor-pointer" onchange="toggleDebugMode(this.checked)" />
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // System Configurations State
+    let config = {
+      waterIntervalMinutes: 30,
+      lastWaterAt: Date.now(),
+      nextWaterAt: Date.now() + 30 * 60 * 1000,
+      barPosition: 'bottom-left',
+      opacity: 0.95,
+      theme: 'frosted-dark',
+      codexFiveHourPercent: 62, // Used: 62%
+      codexWeeklyPercent: 38,   // Used: 38%
+      isTimerSpeedUp: false,
+      isSettingsOpen: false
+    };
+
+    // Initialize parameters loading
+    function loadLocalConfig() {
+      const saved = localStorage.getItem('codex_statusbar_desktop_cfg_v1');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          config = { ...config, ...parsed };
+        } catch (e) {
+          console.error('Failed parsing localstorage settings, restoring to templates', e);
+        }
+      }
+      // Set default nextWaterAt on starting if empty or out of bounds
+      const now = Date.now();
+      const mult = config.isTimerSpeedUp ? 1000 : 60000;
+      if (!config.lastWaterAt || config.lastWaterAt > now) {
+        config.lastWaterAt = now;
+        config.nextWaterAt = now + (config.waterIntervalMinutes * mult);
+      }
+    }
+
+    function saveLocalConfig() {
+      localStorage.setItem('codex_statusbar_desktop_cfg_v1', JSON.stringify(config));
+    }
+
+    // Dom cache pointers
+    const dom = {
+      circle5h: document.getElementById('circle-5h'),
+      tip5h: document.getElementById('tip-5h'),
+      circleWk: document.getElementById('circle-wk'),
+      tipWk: document.getElementById('tip-wk'),
+      txtTimer: document.getElementById('txt-timer'),
+      tipTimer: document.getElementById('tip-timer'),
+      progressClipper: document.getElementById('progress-clipper'),
+      btnDrink: document.getElementById('btn-drink'),
+      btnPing: document.getElementById('btn-ping'),
+      capsule: document.getElementById('statusbar-capsule'),
+      settingsPanel: document.getElementById('settings-panel'),
+      
+      // Control input controls
+      selTheme: document.getElementById('sel-theme'),
+      rngInterval: document.getElementById('rng-interval'),
+      lblInterval: document.getElementById('lbl-interval'),
+      rngOpacity: document.getElementById('rng-opacity'),
+      lblOpacity: document.getElementById('lbl-opacity'),
+      rngCodex5h: document.getElementById('rng-codex-5h'),
+      lblCodex5h: document.getElementById('lbl-codex-5h'),
+      rngCodexWk: document.getElementById('rng-codex-wk'),
+      lblCodexWk: document.getElementById('lbl-codex-wk'),
+      chkDebug: document.getElementById('chk-debug'),
+      divider: document.getElementById('divider-bar')
+    };
+
+    // Hydrate form states on startup
+    function syncControlPanelUI() {
+      dom.selTheme.value = config.theme;
+      dom.rngInterval.value = config.waterIntervalMinutes;
+      dom.lblInterval.textContent = `${config.waterIntervalMinutes} Mins`;
+      dom.rngOpacity.value = Math.round(config.opacity * 100);
+      dom.lblOpacity.textContent = `${Math.round(config.opacity * 100)}%`;
+      
+      const left5hPct = 100 - config.codexFiveHourPercent;
+      dom.rngCodex5h.value = left5hPct;
+      dom.lblCodex5h.textContent = `${left5hPct}%`;
+
+      const leftWkPct = 100 - config.codexWeeklyPercent;
+      dom.rngCodexWk.value = leftWkPct;
+      dom.lblCodexWk.textContent = `${leftWkPct}%`;
+
+      dom.chkDebug.checked = config.isTimerSpeedUp;
+
+      updateThemeVisuals();
+      updateCircularProgresses();
+      updateAnchorPositionSelectionUI();
+    }
+
+    function updateAnchorPositionSelectionUI() {
+      const positions = ['bottom-left', 'top-center', 'top-right'];
+      positions.forEach(pos => {
+        const btnId = pos === 'bottom-left' ? 'btn-pos-left' : pos === 'top-center' ? 'btn-pos-center' : 'btn-pos-right';
+        const button = document.getElementById(btnId);
+        if (pos === config.barPosition) {
+          button.className = "flex-1 bg-zinc-805 rounded py-1 px-0.5 text-[9.5px] border border-cyan-500/30 text-cyan-400 font-semibold";
+        } else {
+          button.className = "flex-1 bg-zinc-950 rounded py-1 px-0.5 text-[9.5px] border border-zinc-800 text-zinc-400";
+        }
+      });
+    }
+
+    // Circle dash calculations
+    const MAX_STROKE = 47.12; // 2 * pi * r (7.5)
+    function dsetCircle(element, pct) {
+      if (!element) return;
+      const offset = MAX_STROKE - ((pct / 100) * MAX_STROKE);
+      element.setAttribute('stroke-dashoffset', offset);
+    }
+
+    function updateCircularProgresses() {
+      // Circle graphics
+      dsetCircle(dom.circle5h, config.codexFiveHourPercent);
+      dom.tip5h.innerText = `已使用: ${config.codexFiveHourPercent}% | 剩余: ${100 - config.codexFiveHourPercent}%`;
+
+      dsetCircle(dom.circleWk, config.codexWeeklyPercent);
+      dom.tipWk.innerText = `已使用: ${config.codexWeeklyPercent}% | 剩余: ${100 - config.codexWeeklyPercent}%`;
+    }
+
+    // Action implementation
+    function onDrinkWater() {
+      const now = Date.now();
+      const mult = config.isTimerSpeedUp ? 1000 : 60000;
+      config.lastWaterAt = now;
+      config.nextWaterAt = now + (config.waterIntervalMinutes * mult);
+      saveLocalConfig();
+    }
+
+    function onThemeChange() {
+      config.theme = dom.selTheme.value;
+      updateThemeVisuals();
+      saveLocalConfig();
+    }
+
+    function updateThemeVisuals() {
+      // Remove all previous themes
+      dom.capsule.classList.remove('bg-zinc-900/95', 'bg-zinc-100/90', 'border-zinc-700/50', 'border-zinc-200', 'border-purple-500/20', 'bg-slate-900/90');
+      dom.capsule.classList.add('text-zinc-100');
+      dom.divider.classList.remove('bg-zinc-800', 'bg-zinc-300', 'bg-purple-500/30');
+
+      if (config.theme === 'frosted-dark') {
+        dom.capsule.classList.add('bg-zinc-900/95', 'border-zinc-700/50');
+        dom.divider.classList.add('bg-zinc-800');
+      } else if (config.theme === 'glass-light') {
+        dom.capsule.classList.add('bg-zinc-100/90', 'border-zinc-200', 'text-zinc-800');
+        dom.capsule.classList.remove('text-zinc-100');
+        dom.divider.classList.add('bg-zinc-300');
+      } else if (config.theme === 'midnight-synth') {
+        dom.capsule.classList.add('bg-slate-900/90', 'border-purple-500/20');
+        dom.divider.classList.add('bg-purple-500/30');
+      }
+
+      // Update opacity on standard capsule
+      dom.capsule.style.opacity = config.opacity;
+    }
+
+    function onIntervalChange(val) {
+      config.waterIntervalMinutes = parseInt(val);
+      dom.lblInterval.textContent = `${val} Mins`;
+      
+      // Update timer parameters immediately
+      onDrinkWater();
+    }
+
+    function onOpacityChange(val) {
+      config.opacity = parseFloat(val) / 100;
+      dom.lblOpacity.textContent = `${val}%`;
+      dom.capsule.style.opacity = config.opacity;
+      saveLocalConfig();
+    }
+
+    function onCodex5hChange(val) {
+      const usedPct = 100 - parseInt(val);
+      config.codexFiveHourPercent = usedPct;
+      dom.lblCodex5h.textContent = `${val}%`;
+      updateCircularProgresses();
+      saveLocalConfig();
+    }
+
+    function onCodexWkChange(val) {
+      const usedPct = 100 - parseInt(val);
+      config.codexWeeklyPercent = usedPct;
+      dom.lblCodexWk.textContent = `${val}%`;
+      updateCircularProgresses();
+      saveLocalConfig();
+    }
+
+    function toggleDebugMode(val) {
+      config.isTimerSpeedUp = val;
+      onDrinkWater();
+    }
+
+    function onPositionChange(pos) {
+      config.barPosition = pos;
+      updateAnchorPositionSelectionUI();
+      
+      // Update UI panels layouts (settings position floats upwards on bottom anchor, downwards on top anchors)
+      if (pos === 'bottom-left') {
+        dom.settingsPanel.style.bottom = '56px';
+        dom.settingsPanel.style.top = 'auto';
+      } else {
+        dom.settingsPanel.style.top = '56px';
+        dom.settingsPanel.style.bottom = 'auto';
+      }
+
+      // Notify Electron window to reposition itself natively!
+      if (window.electronAPI) {
+        window.electronAPI.repositionWindow(pos);
+      }
+      saveLocalConfig();
+    }
+
+    function toggleSettingsPanel() {
+      config.isSettingsOpen = !config.isSettingsOpen;
+      if (config.isSettingsOpen) {
+        dom.settingsPanel.classList.remove('hidden');
+      } else {
+        dom.settingsPanel.classList.add('hidden');
+      }
+
+      // Notify Electron window to dynamically scale height (260px with dropdown, 60px without)
+      if (window.electronAPI) {
+        window.electronAPI.toggleExpandSettings(config.isSettingsOpen);
+      }
+    }
+
+    function onCloseApp() {
+      if (window.electronAPI) {
+        window.electronAPI.closeApp();
+      } else {
+        alert('退出程序指令正常下发 (仅在 Electron 本地客户端中生效)');
+      }
+    }
+
+    // Continuous dynamic countdown update tick
+    function updateTimerCore() {
+      const now = Date.now();
+      const mult = config.isTimerSpeedUp ? 1000 : 60000;
+      const total = config.nextWaterAt - config.lastWaterAt;
+      const elapsed = now - config.lastWaterAt;
+
+      let remainingSec = 0;
+      let pct = 0;
+      let isWaterDue = false;
+
+      if (elapsed <= 0) {
+        pct = 100;
+        remainingSec = Math.round(total / 1000);
+      } else if (elapsed >= total) {
+        pct = 0;
+        remainingSec = 0;
+        isWaterDue = true;
+      } else {
+        const calcPct = ((total - elapsed) / total) * 100;
+        pct = Math.max(0, Math.min(100, calcPct));
+        remainingSec = Math.round((config.nextWaterAt - now) / 1000);
+      }
+
+      // 1. Format text
+      const minStr = String(Math.floor(remainingSec / 60)).padStart(2, '0');
+      const secStr = String(remainingSec % 60).padStart(2, '0');
+      dom.txtTimer.innerText = isWaterDue ? 'DUE' : `${minStr}:${secStr}`;
+      dom.tipTimer.innerText = `间隔: ${config.waterIntervalMinutes}分钟 | 进度: ${Math.round(pct)}%`;
+
+      // 2. Hydrate clipping width percentage (Progress Bar from Left to Right)
+      // Since it drains/fills FROM LEFT TO RIGHT, its width is directly set to progress percent.
+      dom.progressClipper.style.width = `${pct}%`;
+
+      // 3. Quadratic amplitude scaling parameter computations
+      const dryness = (100 - pct) / 100;
+      const factor = dryness * dryness; // quadratic base
+
+      const maxScale = isWaterDue ? 1.2 : 1.15;
+      const maxShadow = isWaterDue ? 12 : 8;
+
+      const currentScale = 1 + (maxScale - 1) * factor;
+      const currentShadow = maxShadow * factor;
+
+      dom.btnDrink.style.setProperty('--pulse-scale', currentScale);
+      dom.btnDrink.style.setProperty('--pulse-shadow', `${currentShadow}px`);
+
+      // 4. Update button active/inactive states
+      if (isWaterDue) {
+        dom.btnDrink.className = "w-5 h-5 rounded-full border border-rose-500 bg-rose-500/20 text-rose-400 flex items-center justify-center relative cursor-pointer active:scale-95 transition-all text-xs shadow-[0_0_12px_rgba(244,63,94,0.4)] animate-water-pulse-due";
+        dom.pingPing = false;
+        dom.btnPing.classList.add('hidden');
+        dom.capsule.classList.add('animate-border-glow-due');
+      } else {
+        dom.btnDrink.className = "w-5 h-5 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-cyan-400 flex items-center justify-center relative cursor-pointer active:scale-95 transition-all text-xs animate-water-pulse";
+        dom.btnPing.classList.remove('hidden');
+        // ping scale opacity decreases quadratically
+        dom.btnPing.style.opacity = 0.35 * factor;
+        dom.capsule.classList.remove('animate-border-glow-due');
+      }
+    }
+
+    // App bootstrapping
+    loadLocalConfig();
+    syncControlPanelUI();
+    
+    // Smooth looping sequence
+    setInterval(updateTimerCore, 250);
+  </script>
+</body>
+</html>
